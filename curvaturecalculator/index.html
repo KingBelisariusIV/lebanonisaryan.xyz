@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Earth Curve Calculator</title>
+    <title>Earth CurvCalc</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
     <style>
         body { background: #f4f6f9; padding: 20px; font-family: sans-serif; }
@@ -26,9 +26,9 @@
     </p>
     <hr>
 
-    <!-- GPS Status Banner -->
+    <!-- GPS Status Banner inspired by main.py coordinate flow -->
     <div class="gps-banner" id="gpsStatus">
-        📍 Requesting your GPS coordinates...
+        📍 Checking precise GPS coordinates...
     </div>
 
     <!-- Calculator Input Panel -->
@@ -112,32 +112,51 @@
 </div>
 
 <script>
-    // Grab GPS on load and optionally adjust eye height if altitude exists
+    function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+    }
+
+    // Precise coordinate handling inspired by main.py logic flow
     window.addEventListener('load', function() {
         const banner = document.getElementById('gpsStatus');
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude.toFixed(4);
-                    const lon = position.coords.longitude.toFixed(4);
-                    const altMeters = position.coords.altitude;
+        const gParam = getQueryParam('g');
 
-                    let msg = `📍 **GPS Locked:** Latitude: ${lat}, Longitude: ${lon}`;
-                    if (altMeters !== null && !isNaN(altMeters)) {
-                        const isImperial = document.getElementById('unitImperial').checked;
-                        const altVal = isImperial ? altMeters * 3.28084 : altMeters;
-                        document.getElementById('h0').value = altVal.toFixed(1);
-                        msg += ` | Altitude auto-applied to Eye Height (${altVal.toFixed(1)} ${isImperial ? 'ft' : 'm'})`;
-                    }
-                    banner.innerHTML = msg;
-                },
-                (error) => {
-                    banner.innerHTML = "⚠️ Location permission denied or unavailable. Using manual eye height.";
-                },
-                { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
-            );
+        if (gParam) {
+            try {
+                const decodedCoords = atob(gParam);
+                const [lat, lon] = decodedCoords.split(',');
+                banner.innerHTML = `📍 **Precise GPS Locked via URL State:** Latitude: ${parseFloat(lat).toFixed(5)}, Longitude: ${parseFloat(lon).toFixed(5)}`;
+            } catch (e) {
+                banner.innerHTML = "⚠️ Invalid coordinate parameter in URL.";
+            }
         } else {
-            banner.innerHTML = "⚠️ Geolocation is not supported by your browser.";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const coordsStr = lat + "," + lon;
+                        const encodedG = btoa(coordsStr).replace(/=/g, "%3D");
+
+                        // Append base64 coordinate token to URL query parameter just like main.py
+                        let currenturl = window.location.href;
+                        if (currenturl.includes("?")) {
+                            currenturl += ("&g=" + encodedG);
+                        } else {
+                            currenturl += ("?g=" + encodedG);
+                        }
+                        window.history.replaceState({}, '', currenturl);
+                        banner.innerHTML = `📍 **Precise GPS Locked:** Latitude: ${lat.toFixed(5)}, Longitude: ${lon.toFixed(5)}`;
+                    },
+                    function(error) {
+                        banner.innerHTML = "⚠️ Location permission denied or unavailable. Standard calculator mode active.";
+                    },
+                    { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+                );
+            } else {
+                banner.innerHTML = "⚠️ Geolocation is not supported by your browser.";
+            }
         }
     });
 

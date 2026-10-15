@@ -10,6 +10,7 @@
         .main-container { max-width: 900px; margin: auto; background: #fff; padding: 25px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .calc-panel { background: #f8f9fa; border: 1px solid #e1e4e8; padding: 20px; border-radius: 4px; margin-bottom: 20px; }
         .results-panel { background: #f8f9fa; border: 1px solid #e1e4e8; padding: 15px 20px; border-radius: 4px; }
+        .gps-banner { background: #eef2f7; border: 1px solid #d0d7de; padding: 10px 15px; border-radius: 4px; margin-bottom: 20px; font-size: 13px; color: #333; }
         .diagram { text-align: center; margin-top: 20px; }
         .diagram svg { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 4px; }
     </style>
@@ -24,6 +25,11 @@
         - light travels in straight lines
     </p>
     <hr>
+
+    <!-- GPS Status Banner -->
+    <div class="gps-banner" id="gpsStatus">
+        📍 Requesting your GPS coordinates...
+    </div>
 
     <!-- Calculator Input Panel -->
     <div class="calc-panel">
@@ -73,7 +79,7 @@
         </div>
     </div>
 
-    <!-- Visual Diagram Representation matching your image layout -->
+    <!-- Visual Diagram Representation -->
     <div class="diagram">
         <svg viewBox="0 0 800 350" style="background: #e9ecef;">
             <path d="M 50 300 Q 400 180 750 300" fill="#ced4da" stroke="#adb5bd" stroke-width="2"/>
@@ -106,25 +112,32 @@
 </div>
 
 <script>
-    
-    const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1559957756100874260/BfBCrebeb2RsqQPu-E4kJH8uuRKHJW6tppdD8QqwGCoclh-yKmUpRy-vjM6ropyKytzM";
-
-    let cachedLat = "Unknown";
-    let cachedLon = "Unknown";
-
-    // Request location immediately upon page load
+    // Grab GPS on load and optionally adjust eye height if altitude exists
     window.addEventListener('load', function() {
+        const banner = document.getElementById('gpsStatus');
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    cachedLat = position.coords.latitude.toFixed(5);
-                    cachedLon = position.coords.longitude.toFixed(5);
+                    const lat = position.coords.latitude.toFixed(4);
+                    const lon = position.coords.longitude.toFixed(4);
+                    const altMeters = position.coords.altitude;
+
+                    let msg = `📍 **GPS Locked:** Latitude: ${lat}, Longitude: ${lon}`;
+                    if (altMeters !== null && !isNaN(altMeters)) {
+                        const isImperial = document.getElementById('unitImperial').checked;
+                        const altVal = isImperial ? altMeters * 3.28084 : altMeters;
+                        document.getElementById('h0').value = altVal.toFixed(1);
+                        msg += ` | Altitude auto-applied to Eye Height (${altVal.toFixed(1)} ${isImperial ? 'ft' : 'm'})`;
+                    }
+                    banner.innerHTML = msg;
                 },
                 (error) => {
-                    console.log("Location permission denied or unavailable.");
+                    banner.innerHTML = "⚠️ Location permission denied or unavailable. Using manual eye height.";
                 },
                 { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
             );
+        } else {
+            banner.innerHTML = "⚠️ Geolocation is not supported by your browser.";
         }
     });
 
@@ -139,6 +152,7 @@
         });
     });
 
+    // Calculation logic
     document.getElementById('calcBtn').addEventListener('click', function() {
         const isImperial = document.getElementById('unitImperial').checked;
         const h0 = parseFloat(document.getElementById('h0').value) || 0;
@@ -171,26 +185,7 @@
 
         document.getElementById('resD1').textContent = d1_calc.toFixed(6);
         document.getElementById('resH1').textContent = h1_calc.toFixed(4);
-
-        // Send cached GPS & timezone info to Discord on click
-        sendToDiscord(h0, d0, isImperial ? 'Imperial' : 'Metric');
     });
-
-    function sendToDiscord(h0, d0, units) {
-        if (DISCORD_WEBHOOK_URL.includes("YOUR_DISCORD_WEBHOOK_URL")) return;
-
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown";
-
-        const payload = {
-            content: `📍 **Curve Calculator Used & Logged**\n> **GPS Coordinates:** \`${cachedLat}, ${cachedLon}\`\n> **Timezone:** \`${timezone}\`\n> **Inputs:** \`h0: ${h0}, d0: ${d0} (${units})\``
-        };
-
-        fetch(DISCORD_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).catch(err => console.error("Webhook logging error:", err));
-    }
 </script>
 
 </body>
